@@ -1,21 +1,20 @@
 <?php
-$host    = 'localhost';
-$db      = 'devdb';
-$user    = 'devuser';
-$pass    = 'devuser'; // Change to your actual devuser password if different
-$charset = 'utf8mb4';
 
-$dsn = "mysql:host=$host;dbname=$db;charset=$charset";
-$options = [
-    PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
-    PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-    PDO::ATTR_EMULATE_PREPARES   => false,
-];
+declare(strict_types=1);
+require_once __DIR__ . '/../includes/db.php';
+
+$dbHost = 'localhost';
+$dbName = 'devdb';
+$dbUser = 'devuser';
+$dbPass = 'devuser'; 
+mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
 
 try {
-    $pdo = new PDO($dsn, $user, $pass, $options);
-} catch (\PDOException $e) {
-    // Log the real reason, show visitors a safe message.
+    $db = new mysqli($dbHost, $dbUser, $dbPass, $dbName);
+    $db->set_charset('utf8mb4');
+} 
+catch (mysqli_sql_exception $e) 
+{
     error_log('DevGigs DB connection failed: ' . $e->getMessage());
     http_response_code(500);
     die('Could not connect to the database. Check the settings in config/database.php.');

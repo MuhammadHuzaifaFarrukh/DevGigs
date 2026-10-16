@@ -1,4 +1,4 @@
-/* DevGigs - small, event-driven script. No scroll listeners, no animation loops. */
+/* DevGigs - small, event-driven script. Parallax uses CSS scroll-driven animation; the JS fallback below only runs where that is unsupported. */
 (function () {
   'use strict';
   var root = document.documentElement;
@@ -7,10 +7,10 @@
 
   /* Same rules as includes/validation.php */
   var PASSWORD_RULES = {
-    len:   function (v) { return v.length >= 8 && v.length <= 72; },
+    len: function (v) { return v.length >= 8 && v.length <= 72; },
     upper: function (v) { return /[A-Z]/.test(v); },
     lower: function (v) { return /[a-z]/.test(v); },
-    num:   function (v) { return /[0-9]/.test(v); }
+    num: function (v) { return /[0-9]/.test(v); }
   };
 
   function emailMessage(v) {
@@ -62,7 +62,37 @@
     if (message && !window.confirm(message)) e.preventDefault();
   });
 
+
+  /* Parallax fallback for browsers without CSS scroll-driven animations.
+     Passive listener + requestAnimationFrame, transform/opacity only, paused while the hero is off screen. */
+  function initParallaxFallback() {
+    var hero = document.querySelector('[data-parallax]');
+    if (!hero) return;
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    if (window.CSS && CSS.supports && CSS.supports('animation-timeline: scroll()')) return;
+
+    var bg = hero.querySelector('.hero-bg');
+    var copy = hero.querySelector('.hero-copy');
+    var height = hero.offsetHeight, visible = true, ticking = false;
+
+    function frame() {
+      var y = Math.min(window.scrollY, height);
+      bg.style.transform = 'translate3d(0,' + (y * 0.13).toFixed(1) + 'px,0)';
+      copy.style.transform = 'translate3d(0,' + Math.min(y * 0.12, 48).toFixed(1) + 'px,0)';
+      copy.style.opacity = Math.max(1 - y / (height * 0.85), 0.15).toFixed(2);
+      ticking = false;
+    }
+    window.addEventListener('scroll', function () {
+      if (visible && !ticking) { ticking = true; requestAnimationFrame(frame); }
+    }, { passive: true });
+    window.addEventListener('resize', function () { height = hero.offsetHeight; });
+    if ('IntersectionObserver' in window) {
+      new IntersectionObserver(function (entries) { visible = entries[0].isIntersecting; }).observe(hero);
+    }
+  }
+
   document.addEventListener('DOMContentLoaded', function () {
+    initParallaxFallback();
     document.querySelectorAll('input[data-validate="email"]').forEach(function (input) {
       wire(input, emailMessage);
     });
