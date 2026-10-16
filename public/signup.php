@@ -1,5 +1,5 @@
 <?php
-require_once __DIR__ . '/../includes/session.php';
+require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/validation.php';
 require_once __DIR__ . '/../includes/layout.php';
 require_once __DIR__ . '/../config/database.php';
@@ -32,20 +32,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if ($error === '') {
         try {
-            $check = $pdo->prepare('SELECT id FROM users WHERE email = ?');
-            $check->execute([$old['email']]);
-
-            if ($check->fetch()) {
+            if (db_one($db, 'SELECT id FROM users WHERE email = ?', 's', [$old['email']])) {
                 $error = 'That email is already registered. Try logging in instead.';
             } else {
-                $insert = $pdo->prepare('INSERT INTO users (name, email, phone, password, role) VALUES (?, ?, ?, ?, ?)');
-                $insert->execute([$old['name'], $old['email'], $old['phone'], password_hash($password, PASSWORD_DEFAULT), $old['role']]);
+                db_exec($db, 'INSERT INTO users (name, email, phone, password, role_id) VALUES (?, ?, ?, ?, (SELECT id FROM roles WHERE name = ?))', 'sssss', [$old['name'], $old['email'], $old['phone'], password_hash($password, PASSWORD_DEFAULT), $old['role']]);
                 set_flash('Account created. Log in to continue.');
                 redirect('login.php');
             }
-        } catch (\PDOException $ex) {
+        } catch (\mysqli_sql_exception $ex) {
             error_log('Signup failed: ' . $ex->getMessage());
-            $error = ($ex->getCode() === '23000')
+            $error = ((int)$ex->getCode() === 1062)
                 ? 'That email is already registered. Try logging in instead.'
                 : 'Something went wrong while creating your account. Please try again.';
         }

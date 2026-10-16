@@ -4,7 +4,7 @@ require_once __DIR__ . '/../includes/validation.php';
 require_once __DIR__ . '/../includes/layout.php';
 require_once __DIR__ . '/../config/database.php';
 
-require_login($pdo, 'client');
+require_login($db, 'client');
 
 $error = '';
 $old   = ['title' => '', 'description' => '', 'budget' => ''];
@@ -23,11 +23,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if ($error === '') {
         try {
-            $stmt = $pdo->prepare("INSERT INTO gigs (client_id, title, description, budget, status) VALUES (?, ?, ?, ?, 'open')");
-            $stmt->execute([current_user_id(), $old['title'], $old['description'], $old['budget']]);
+            db_exec($db, "INSERT INTO gigs (client_id, title, description, budget, status) VALUES (?, ?, ?, ?, 'open')", 'isss', [current_user_id(), $old['title'], $old['description'], $old['budget']]);
             set_flash('Your gig is live.');
-            redirect('view-gig.php?id=' . (int)$pdo->lastInsertId());
-        } catch (\PDOException $ex) {
+            redirect('view-gig.php?id=' . $db->insert_id);
+        } catch (\mysqli_sql_exception $ex) {
             error_log('Create gig failed: ' . $ex->getMessage());
             $error = 'We could not save your gig. Please try again.';
         }

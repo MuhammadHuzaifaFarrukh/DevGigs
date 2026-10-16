@@ -1,5 +1,5 @@
 <?php
-require_once __DIR__ . '/../includes/session.php';
+require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/layout.php';
 require_once __DIR__ . '/../config/database.php';
 
@@ -24,62 +24,55 @@ $sql = "SELECT g.id, g.title, g.description, g.budget, g.created_at, u.name AS c
         FROM gigs g JOIN users u ON g.client_id = u.id
         WHERE g.is_deleted = 0 AND g.status = 'open'";
 $params = [];
+$types  = '';
 if ($q !== '') {
     $sql .= ' AND (g.title LIKE ? OR g.description LIKE ?)';
     $like = '%' . addcslashes($q, '%_\\') . '%';
     $params = [$like, $like];
+    $types  = 'ss';
 }
 $sql .= ' ORDER BY ' . $sorts[$sort] . ' LIMIT 50';
-$stmt = $pdo->prepare($sql);
-$stmt->execute($params);
-$gigs = $stmt->fetchAll();
+$gigs = db_all($db, $sql, $types, $params);
 
-/* Live numbers for the hero board */
-$stats = $pdo->query("SELECT
+/* Live numbers for the stat bar */
+$stats = db_one($db, "SELECT
     (SELECT COUNT(*) FROM gigs WHERE is_deleted = 0 AND status = 'open') AS open_gigs,
-    (SELECT COUNT(*) FROM users WHERE is_deleted = 0 AND role = 'freelancer') AS freelancers,
-    (SELECT COUNT(*) FROM proposals WHERE is_deleted = 0) AS proposals")->fetch();
-$latest = $pdo->query("SELECT g.id, g.title, g.budget, u.name AS client_name
-    FROM gigs g JOIN users u ON g.client_id = u.id
-    WHERE g.is_deleted = 0 AND g.status = 'open'
-    ORDER BY g.created_at DESC LIMIT 3")->fetchAll();
+    (SELECT COUNT(*) FROM users u JOIN roles r ON r.id = u.role_id WHERE u.is_deleted = 0 AND r.name = 'freelancer') AS freelancers,
+    (SELECT COUNT(*) FROM proposals WHERE is_deleted = 0) AS proposals");
 
 $role = current_role();
-page_start('Hire developers or find dev work');
+page_start('Find trusted developers');
 ?>
-<section class="hero">
-    <div class="container hero-grid">
-        <div>
-            <h1>Hire a developer. Or get hired as one.</h1>
-            <p class="lead">Clients post software gigs with a budget. Freelancers read the brief and send a cover letter and a bid. Pick a role and you are in.</p>
+<section class="hero" data-parallax>
+    <div class="hero-bg" aria-hidden="true">
+        <picture>
+            <source srcset="img/hero.webp" type="image/webp">
+            <img src="img/hero.jpg" alt="" width="1024" height="1024" fetchpriority="high" decoding="async">
+        </picture>
+    </div>
+    <div class="container hero-copy">
+        <div class="hero-text">
+            <h1>Find trusted developers for the work that matters.</h1>
+            <p class="lead">DevGigs connects clients with independent software professionals. Post a gig, review proposals, and choose the right person for the job.</p>
             <div class="hero-actions">
                 <?php if (!is_logged_in()): ?>
-                    <a class="btn btn-lg" href="signup.php">Create an account</a>
+                    <a class="btn btn-lg" href="signup.php">Get started</a>
                 <?php elseif ($role === 'client'): ?>
                     <a class="btn btn-lg" href="create-gig.php">Post a gig</a>
                 <?php endif; ?>
                 <a class="btn btn-ghost btn-lg" href="#gigs">Browse open gigs</a>
             </div>
         </div>
-        <aside class="board" aria-label="Latest open gigs">
-            <div class="board-head"><span>Open right now</span><span class="live">Live</span></div>
-            <?php if (!$latest): ?>
-                <p class="board-empty">No open gigs yet. The first one posted will show up here.</p>
-            <?php endif; ?>
-            <?php foreach ($latest as $row): ?>
-                <a class="board-row" href="view-gig.php?id=<?= (int)$row['id'] ?>">
-                    <span><b><?= e($row['title']) ?></b><small><?= e($row['client_name']) ?></small></span>
-                    <span class="price">$<?= number_format($row['budget'], 0) ?></span>
-                </a>
-            <?php endforeach; ?>
-            <div class="board-stats">
-                <div><b><?= (int)$stats['open_gigs'] ?></b><span>open gigs</span></div>
-                <div><b><?= (int)$stats['freelancers'] ?></b><span>freelancers</span></div>
-                <div><b><?= (int)$stats['proposals'] ?></b><span>proposals sent</span></div>
-            </div>
-        </aside>
     </div>
 </section>
+
+<div class="container">
+    <div class="statbar">
+        <div><b><?= (int)$stats['open_gigs'] ?></b><span>Open gigs</span></div>
+        <div><b><?= (int)$stats['freelancers'] ?></b><span>Freelancers</span></div>
+        <div><b><?= (int)$stats['proposals'] ?></b><span>Proposals sent</span></div>
+    </div>
+</div>
 
 <section class="section" id="gigs">
     <div class="container">

@@ -1,14 +1,17 @@
 <?php
+
+declare(strict_types=1);
+
 /** Shared page shell: <head>, navigation, flash message, footer. */
-require_once __DIR__ . '/session.php';
+require_once __DIR__ . '/auth.php';
 require_once __DIR__ . '/cookies.php';
 
-function logo_svg() {
-    return '<svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="8" fill="currentColor"/>'
-         . '<path d="M13 11l-5 5 5 5M19 11l5 5-5 5" fill="none" style="stroke:var(--bg)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+function logo_svg(): string {
+    return '<svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="7" fill="currentColor"/>'
+         . '<path d="M12 9h4.5a7 7 0 0 1 0 14H12z" fill="none" style="stroke:var(--bg)" stroke-width="2.4" stroke-linejoin="round"/></svg>';
 }
 
-function page_start($title) {
+function page_start(string $title): void {
     $theme = get_theme();
     $role  = current_role();
     $flash = pull_flash();
@@ -30,9 +33,9 @@ function page_start($title) {
     </script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@800&family=Instrument+Sans:wght@400;500;600&display=swap">
-    <link rel="stylesheet" href="css/style.css?v=2">
-    <script src="js/main.js?v=2" defer></script>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Instrument+Sans:wght@400;500;600&display=swap">
+    <link rel="stylesheet" href="css/style.css?v=5">
+    <script src="js/main.js?v=3" defer></script>
 </head>
 <body>
 <header class="nav">
@@ -50,6 +53,7 @@ function page_start($title) {
             </button>
             <?php if (is_logged_in()): ?>
                 <a class="btn btn-ghost btn-sm nav-user" href="profile.php"><?= e($_SESSION['user_name'] ?? 'Profile') ?></a>
+                <a class="btn btn-ghost btn-sm nav-settings" href="settings.php">Settings</a>
                 <a class="btn btn-sm" href="logout.php">Log out</a>
             <?php else: ?>
                 <a class="btn btn-ghost btn-sm" href="login.php">Log in</a>
@@ -65,7 +69,7 @@ function page_start($title) {
 <?php
 }
 
-function page_end() {
+function page_end(): void {
     ?>
 </main>
 <footer class="footer">
@@ -79,7 +83,7 @@ function page_end() {
 }
 
 /** Eye-toggle password input. */
-function password_input($id, $name, $autocomplete, $label = 'Password') {
+function password_input(string $id, string $name, string $autocomplete, string $label = 'Password'): void {
     ?>
     <div class="field">
         <label for="<?= e($id) ?>"><?= e($label) ?></label>

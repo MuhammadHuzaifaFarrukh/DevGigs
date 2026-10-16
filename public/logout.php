@@ -1,18 +1,10 @@
 <?php
-require_once __DIR__ . '/../includes/session.php';
 
-$_SESSION = [];
+declare(strict_types=1);
 
-if (ini_get('session.use_cookies')) {
-    $params = session_get_cookie_params();
-    setcookie(session_name(), '', time() - 42000,
-        $params['path'], $params['domain'],
-        $params['secure'], $params['httponly']
-    );
-}
+require_once __DIR__ . '/../includes/auth.php';
 
-session_destroy();
-
-// Preference cookies (theme, sort order) are kept on purpose. Only the login is cleared.
-header('Location: login.php');
-exit();
+// Ends the session and deletes the session cookie.
+// Preference cookies (theme, sort order) are kept on purpose.
+logout_user();
+redirect('login.php');

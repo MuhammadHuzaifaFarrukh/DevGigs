@@ -9,9 +9,7 @@ if (!$gig_id || $gig_id < 1) {
     redirect('index.php');
 }
 
-$stmt = $pdo->prepare('SELECT g.*, u.name AS client_name FROM gigs g JOIN users u ON g.client_id = u.id WHERE g.id = ? AND g.is_deleted = 0');
-$stmt->execute([$gig_id]);
-$gig = $stmt->fetch();
+$gig = db_one($db, 'SELECT g.*, u.name AS client_name FROM gigs g JOIN users u ON g.client_id = u.id WHERE g.id = ? AND g.is_deleted = 0', 'i', [$gig_id]);
 
 if (!$gig) {
     http_response_code(404);
@@ -28,7 +26,71 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!is_logged_in()) {
         redirect('login.php');
     }
-    require_login($pdo);   // re-checks the account and refreshes the role from the database
+    require_login($db);   // re-checks the account and refreshes the role from the database
+
+    $action = (string)($_POST['action'] ?? 'propose');
+    $owns   = current_user_id() === (int)$gig['client_id'];
+
+    if ($action === 'accept_proposal' || $action === 'complete_gig') {
+        /* Client-only steps that lead to a review: hire someone, then close the gig. */
+        $pid = (int)($_POST['proposal_id'] ?? 0);
+        if (!csrf_ok()) {
+            set_flash('Your session expired. Reload the page and try again.', 'error');
+        } elseif (!$owns) {
+            set_flash('Only the client who posted this gig can do that.', 'error');
+        } elseif ($action === 'accept_proposal') {
+            $db->begin_transaction();
+            try {
+                $p = db_one($db, "SELECT id FROM proposals WHERE id = ? AND gig_id = ? AND status = 'pending' AND is_deleted = 0 FOR UPDATE", 'ii', [$pid, $gig_id]);
+                $g = db_one($db, "SELECT id FROM gigs WHERE id = ? AND status = 'open' AND is_deleted = 0 FOR UPDATE", 'i', [$gig_id]);
+                if (!$p || !$g) {
+                    $db->rollback();
+                    set_flash('That proposal can no longer be accepted.', 'error');
+                } else {
+                    db_exec($db, "UPDATE proposals SET status = 'accepted' WHERE id = ?", 'i', [$pid]);
+                    db_exec($db, "UPDATE proposals SET status = 'rejected' WHERE gig_id = ? AND id <> ? AND status = 'pending'", 'ii', [$gig_id, $pid]);
+                    db_exec($db, "UPDATE gigs SET status = 'in_progress' WHERE id = ?", 'i', [$gig_id]);
+                    $db->commit();
+                    set_flash('Proposal accepted. The gig is now in progress.');
+                }
+            } catch (\mysqli_sql_exception $ex) {
+                $db->rollback();
+                error_log('Accept failed: ' . $ex->getMessage());
+                set_flash('We could not accept that proposal. Please try again.', 'error');
+            }
+        } else { // complete_gig
+            $changed = db_exec($db, "UPDATE gigs SET status = 'completed' WHERE id = ? AND status = 'in_progress' AND is_deleted = 0", 'i', [$gig_id]);
+            set_flash($changed > 0 ? 'Gig marked as completed. You can now review the freelancer.' : 'Only a gig in progress can be completed.', $changed > 0 ? 'ok' : 'error');
+        }
+        redirect('view-gig.php?id=' . $gig_id);
+    }
+
+    if ($action === 'submit_review') {
+        $rating  = trim($_POST['rating'] ?? '');
+        $comment = trim($_POST['comment'] ?? '');
+        $hired   = db_one($db, "SELECT freelancer_id FROM proposals WHERE gig_id = ? AND status = 'accepted' AND is_deleted = 0", 'i', [$gig_id]);
+        $rerror  = first_error([
+            csrf_ok() ? null : 'Your session expired. Reload the page and try again.',
+            $owns ? null : 'Only the client who posted this gig can review the freelancer.',
+            $gig['status'] === 'completed' ? null : 'You can review only after the gig is completed.',
+            $hired ? null : 'This gig has no accepted freelancer to review.',
+            validate_rating($rating),
+            $comment === '' ? null : validate_text($comment, 'Comment', 1, 1000),
+        ]);
+        if ($rerror === '') {
+            try {
+                db_exec($db, 'INSERT INTO reviews (gig_id, reviewer_id, freelancer_id, rating, comment) VALUES (?, ?, ?, ?, ?)',
+                    'iiiis', [$gig_id, current_user_id(), (int)$hired['freelancer_id'], (int)$rating, $comment === '' ? null : $comment]);
+                set_flash('Thank you. Your review was posted.');
+            } catch (\mysqli_sql_exception $ex) {
+                error_log('Review failed: ' . $ex->getMessage());
+                set_flash((int)$ex->getCode() === 1062 ? 'You have already reviewed this gig.' : 'We could not save your review. Please try again.', 'error');
+            }
+        } else {
+            set_flash($rerror, 'error');
+        }
+        redirect('view-gig.php?id=' . $gig_id);
+    }
 
     $old['cover_letter'] = trim($_POST['cover_letter'] ?? '');
     $old['bid_amount']   = trim($_POST['bid_amount'] ?? '');
@@ -43,20 +105,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if ($error === '') {
         try {
-            $dup = $pdo->prepare('SELECT id FROM proposals WHERE gig_id = ? AND freelancer_id = ?');
-            $dup->execute([$gig_id, current_user_id()]);
-
-            if ($dup->fetch()) {
+            if (db_one($db, 'SELECT id FROM proposals WHERE gig_id = ? AND freelancer_id = ?', 'ii', [$gig_id, current_user_id()])) {
                 $error = 'You have already sent a proposal for this gig.';
             } else {
-                $ins = $pdo->prepare("INSERT INTO proposals (gig_id, freelancer_id, cover_letter, bid_amount, status) VALUES (?, ?, ?, ?, 'pending')");
-                $ins->execute([$gig_id, current_user_id(), $old['cover_letter'], $old['bid_amount']]);
+                db_exec($db, "INSERT INTO proposals (gig_id, freelancer_id, cover_letter, bid_amount, status) VALUES (?, ?, ?, ?, 'pending')", 'iiss', [$gig_id, current_user_id(), $old['cover_letter'], $old['bid_amount']]);
                 set_flash('Proposal sent. The client can now see it.');
                 redirect('view-gig.php?id=' . $gig_id);
             }
-        } catch (\PDOException $ex) {
+        } catch (\mysqli_sql_exception $ex) {
             error_log('Proposal failed: ' . $ex->getMessage());
-            $error = ($ex->getCode() === '23000')
+            $error = ((int)$ex->getCode() === 1062)
                 ? 'You have already sent a proposal for this gig.'
                 : 'We could not save your proposal. Please try again.';
         }
@@ -68,19 +126,24 @@ $is_owner = is_logged_in() && current_user_id() === (int)$gig['client_id'];
 
 $mine = null;
 if ($role === 'freelancer') {
-    $q = $pdo->prepare('SELECT bid_amount, status, created_at FROM proposals WHERE gig_id = ? AND freelancer_id = ? AND is_deleted = 0');
-    $q->execute([$gig_id, current_user_id()]);
-    $mine = $q->fetch();
+    $mine = db_one($db, 'SELECT bid_amount, status, created_at FROM proposals WHERE gig_id = ? AND freelancer_id = ? AND is_deleted = 0', 'ii', [$gig_id, current_user_id()]);
 }
 
 $proposals = [];
 if ($is_owner) {
-    $q = $pdo->prepare('SELECT p.*, u.name AS freelancer_name, u.email AS freelancer_email
+    $proposals = db_all($db, 'SELECT p.*, u.name AS freelancer_name, u.email AS freelancer_email,
+                            (SELECT AVG(r.rating) FROM reviews r WHERE r.freelancer_id = p.freelancer_id AND r.is_deleted = 0) AS avg_rating,
+                            (SELECT COUNT(*) FROM reviews r WHERE r.freelancer_id = p.freelancer_id AND r.is_deleted = 0) AS review_count
                         FROM proposals p JOIN users u ON p.freelancer_id = u.id
-                        WHERE p.gig_id = ? AND p.is_deleted = 0 ORDER BY p.created_at DESC');
-    $q->execute([$gig_id]);
-    $proposals = $q->fetchAll();
+                        WHERE p.gig_id = ? AND p.is_deleted = 0 ORDER BY p.created_at DESC', 'i', [$gig_id]);
 }
+
+/* Who was hired, and the review (if any) for this gig. */
+$hired = db_one($db, "SELECT p.freelancer_id, u.name FROM proposals p JOIN users u ON u.id = p.freelancer_id
+                      WHERE p.gig_id = ? AND p.status = 'accepted' AND p.is_deleted = 0", 'i', [$gig_id]);
+$review = db_one($db, 'SELECT r.rating, r.comment, r.created_at, u.name AS reviewer_name
+                       FROM reviews r JOIN users u ON u.id = r.reviewer_id
+                       WHERE r.gig_id = ? AND r.is_deleted = 0', 'i', [$gig_id]);
 
 page_start($gig['title']);
 ?>
@@ -141,15 +204,78 @@ page_start($gig['title']);
             <?php foreach ($proposals as $p): ?>
                 <div class="proposal">
                     <div class="proposal-top">
-                        <span><strong><?= e($p['freelancer_name']) ?></strong>
-                            <span class="muted"> &middot; <a href="mailto:<?= e($p['freelancer_email']) ?>"><?= e($p['freelancer_email']) ?></a></span></span>
+                        <span><strong><a class="link" href="freelancer.php?id=<?= (int)$p['freelancer_id'] ?>"><?= e($p['freelancer_name']) ?></a></strong>
+                            <span class="muted"> &middot; <a href="mailto:<?= e($p['freelancer_email']) ?>"><?= e($p['freelancer_email']) ?></a></span>
+                            <span class="rating-line">
+                            <?php if ((int)$p['review_count'] > 0): ?>
+                                <?= stars($p['avg_rating']) ?> <?= number_format((float)$p['avg_rating'], 1) ?> (<?= (int)$p['review_count'] ?> review<?= (int)$p['review_count'] === 1 ? '' : 's' ?>)
+                            <?php else: ?>
+                                No reviews yet
+                            <?php endif; ?>
+                            </span></span>
                         <span><span class="badge badge-<?= e($p['status']) ?>"><?= e($p['status']) ?></span>
                             <strong class="price" style="font-size:1.2rem;margin-left:8px">$<?= number_format($p['bid_amount'], 2) ?></strong></span>
                     </div>
                     <p><?= e($p['cover_letter']) ?></p>
                     <div class="hint">Sent <?= e(date('M j, Y', strtotime($p['created_at']))) ?></div>
+                    <?php if ($gig['status'] === 'open' && $p['status'] === 'pending'): ?>
+                        <form class="actions" method="post" action="view-gig.php?id=<?= (int)$gig_id ?>" data-confirm="Accept this proposal? Other pending proposals will be rejected.">
+                            <?= csrf_field() ?>
+                            <input type="hidden" name="action" value="accept_proposal">
+                            <input type="hidden" name="proposal_id" value="<?= (int)$p['id'] ?>">
+                            <button class="btn btn-sm" type="submit">Accept proposal</button>
+                        </form>
+                    <?php endif; ?>
                 </div>
             <?php endforeach; ?>
+        </div>
+    <?php endif; ?>
+
+    <?php if ($is_owner && $gig['status'] === 'in_progress' && $hired): ?>
+        <div class="panel">
+            <h2>Work in progress</h2>
+            <p class="muted">Hired: <strong><?= e($hired['name']) ?></strong>. When the work is delivered, mark the gig as completed to leave a review.</p>
+            <form class="actions" method="post" action="view-gig.php?id=<?= (int)$gig_id ?>" data-confirm="Mark this gig as completed?">
+                <?= csrf_field() ?>
+                <input type="hidden" name="action" value="complete_gig">
+                <button class="btn" type="submit">Mark as completed</button>
+            </form>
+        </div>
+    <?php endif; ?>
+
+    <?php if ($review): ?>
+        <div class="panel">
+            <h2>Review</h2>
+            <div class="review">
+                <div class="review-top">
+                    <span><?= stars($review['rating']) ?> <strong><?= (int)$review['rating'] ?>/5</strong>
+                        <?php if ($hired): ?><span class="muted"> for <a class="link" href="freelancer.php?id=<?= (int)$hired['freelancer_id'] ?>"><?= e($hired['name']) ?></a></span><?php endif; ?></span>
+                    <span class="hint" style="margin:0">by <?= e($review['reviewer_name']) ?> &middot; <?= e(date('M j, Y', strtotime($review['created_at']))) ?></span>
+                </div>
+                <?php if ($review['comment'] !== null && $review['comment'] !== ''): ?><p><?= e($review['comment']) ?></p><?php endif; ?>
+            </div>
+        </div>
+    <?php elseif ($is_owner && $gig['status'] === 'completed' && $hired): ?>
+        <div class="panel">
+            <h2>Review <?= e($hired['name']) ?></h2>
+            <form method="post" action="view-gig.php?id=<?= (int)$gig_id ?>">
+                <?= csrf_field() ?>
+                <input type="hidden" name="action" value="submit_review">
+                <div class="field">
+                    <span class="label" id="rating-label">Rating</span>
+                    <div class="star-input" role="radiogroup" aria-labelledby="rating-label">
+                        <?php for ($i = 5; $i >= 1; $i--): ?>
+                            <input type="radio" name="rating" id="star<?= $i ?>" value="<?= $i ?>" required>
+                            <label for="star<?= $i ?>" title="<?= $i ?> star<?= $i === 1 ? '' : 's' ?>">&#9733;<span class="sr-only" style="position:absolute;left:-9999px"><?= $i ?> star<?= $i === 1 ? '' : 's' ?></span></label>
+                        <?php endfor; ?>
+                    </div>
+                </div>
+                <div class="field">
+                    <label for="comment">Comment (optional)</label>
+                    <textarea class="input" id="comment" name="comment" rows="4" maxlength="1000" placeholder="How was it working with this freelancer?"></textarea>
+                </div>
+                <button class="btn btn-lg" type="submit">Post review</button>
+            </form>
         </div>
     <?php endif; ?>
 </div>
