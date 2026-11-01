@@ -43,33 +43,16 @@ Built with plain **PHP** and **MySQL** (mysqli, prepared statements), with no fr
 - Light and dark theme (saved in a cookie, follows the device by default)
 - Responsive layout, keyboard-friendly star rating control
 
-## CRUD operations
+## CRUD Operations
 
-Every create, update and delete is a POST request with a CSRF token, validated on the server and run with prepared statements. Every delete shows a confirmation page first. After the first admin exists you never need to open MySQL again.
+Every create, update and delete is a **POST with a CSRF token**, validated on the server and run with **prepared statements**. Deletes show a confirmation page first. Once the database exists you never need to open MySQL for day-to-day work.
 
-**Gigs**
-- **Create:** client, `create-gig.php`
-- **Read:** everyone sees open gigs on `index.php` (paginated, with search and sort); a client lists their own in `my-gigs.php`; an admin sees all, including removed ones, in `admin-gigs.php`
-- **Update:** client, own gig, only while it is open, `edit-gig.php`
-- **Delete:** client, own gig, while open or cancelled, `delete-gig.php` (soft delete). A client can also **cancel** an open or in-progress gig. An admin removes or restores gigs in `admin-gigs.php`
-
-**Proposals**
-- **Create:** freelancer, on an open gig, `view-gig.php`
-- **Read:** a freelancer sees their own in `my-proposals.php`; a client sees those on their gig; an admin sees all (read-only)
-- **Update:** freelancer, own pending proposal, `edit-proposal.php`; the client **accepts or rejects** on `view-gig.php`
-- **Delete:** freelancer **withdraws** their own pending proposal, `delete-proposal.php`
-
-**Reviews**
-- **Create:** client, after the gig is completed, `view-gig.php`
-- **Read:** public, on the gig and on the freelancer profile
-- **Update:** the client who wrote it, `edit-review.php`
-- **Delete:** the client who wrote it, `delete-review.php`; an admin removes or restores reviews in `admin-dashboard.php`
-
-**Users**
-- **Create:** sign-up as client or freelancer (`signup.php`); an **admin adds any role and sets the password** in `admin-user-form.php`
-- **Read:** own profile (`profile.php`), public freelancer profile (`freelancer.php`); an **admin lists, searches and filters everyone** in `admin-users.php`
-- **Update:** own name, phone and password in `settings.php`; an **admin edits any user, role and password** in `admin-user-form.php`
-- **Delete:** own account in `delete-account.php` (password required); an **admin disables, restores or permanently destroys** accounts in `admin-users.php` and `admin-user-delete.php` (destroying asks for the admin's password)
+| Data | Create | Read | Update | Delete |
+|---|---|---|---|---|
+| **Gigs** | Client: `create-gig.php` | Everyone: open gigs on `index.php` (paginated, search, sort). Client: own gigs in `my-gigs.php`. Admin: all, including removed, in `admin-gigs.php` | Client, own gig, while open: `edit-gig.php` | Client, own gig, while open or cancelled: `delete-gig.php` (soft). Client can also **cancel** an open or in-progress gig. Admin **removes / restores** (soft) |
+| **Proposals** | Freelancer, on an open gig: `view-gig.php` | Freelancer: own, in `my-proposals.php`. Client: those on their gig. Admin: all, read-only | Freelancer, own pending proposal: `edit-proposal.php`. Client **accepts / rejects** on `view-gig.php` | Freelancer **withdraws** own pending proposal: `delete-proposal.php` |
+| **Reviews** | Client, after the gig is completed: `view-gig.php` | Public, on the gig and the freelancer profile | Author: `edit-review.php` | Author: `delete-review.php`. Admin removes / restores in `admin-dashboard.php` |
+| **Users** | Sign up as client or freelancer: `signup.php`. **Admin adds any role and sets the password:** `admin-user-form.php` | Own profile: `profile.php`. Public freelancer profile: `freelancer.php`. **Admin lists everyone:** `admin-users.php` | Own name, phone, password: `settings.php`. **Admin edits any user:** `admin-user-form.php` | Own account: `delete-account.php` (needs password, soft). **Admin disables / restores:** `admin-users.php`. **Admin destroys permanently:** `admin-user-delete.php` (needs the admin's password) |
 
 **Delete rules**
 - **Soft delete** (`is_deleted = 1`) keeps the row and can be undone. Used for gigs, reviews removed by an admin, disabled users and deleted accounts.
