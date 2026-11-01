@@ -15,7 +15,6 @@ Built with plain **PHP** and **MySQL** (mysqli, prepared statements), with no fr
 
 ## Features
 
-<<<<<<< HEAD
 **Guests (not logged in)**
 - Browse, search and sort open gigs, and read gig details and freelancer profiles
 - Nothing else: they cannot post, bid, review or manage anything
@@ -87,7 +86,6 @@ Every create, update and delete is a **POST with a CSRF token**, validated on th
 - Light and dark theme (saved in a cookie, follows the device by default)
 - Responsive layout, keyboard-friendly star rating control
 
->>>>>>> 53fa469514309da3cd93032c33c726a412cdb933
 ## Gig life cycle
 
 ```
@@ -110,7 +108,6 @@ Five tables in third normal form.
 ## Database design
 
 Five tables in third normal form. `roles` and `reviews` are the newest additions.
->>>>>>> 53fa469514309da3cd93032c33c726a412cdb933
 
 ```mermaid
 erDiagram
@@ -166,7 +163,7 @@ erDiagram
 
 Key constraints:
 - `users.role_id` points to `roles.id`. Each account has exactly one role; someone who wants to both hire and work registers two accounts with different emails.
-<<<<<<< HEAD
+
 - `proposals (gig_id, freelancer_id)` is unique, so a freelancer bids once per gig. Withdrawing a proposal is a real `DELETE`, which frees the slot so they can bid again.
 - `reviews.gig_id` is unique, so there is at most one review per gig. An author who deletes their own review can write a new one; an admin-removed review stays blocked.
 - `reviews.rating` has a `CHECK (rating BETWEEN 1 AND 5)`. The app validates it too, because MySQL older than 8.0.16 ignores `CHECK`.
@@ -176,14 +173,13 @@ Key constraints:
 - `reviews.gig_id` is unique, so there is at most one review per gig.
 - `reviews.rating` has a `CHECK (rating BETWEEN 1 AND 5)`. The app validates it too, because MySQL older than 8.0.16 ignores `CHECK`.
 - Nothing is hard-deleted. Rows are flagged with `is_deleted`.
->>>>>>> 53fa469514309da3cd93032c33c726a412cdb933
 
 Full SQL: [`database/schema.sql`](database/schema.sql)
 
 ## Security
 
 - Prepared statements for every query (SQL injection)
-<<<<<<< HEAD
+
 - Output escaping with `htmlspecialchars` (XSS), including review text and gig titles
 - Per-session CSRF token on every state-changing form, including every delete
 - Confirmation page before every delete; permanent user deletion also asks for the admin's password
@@ -199,7 +195,7 @@ Full SQL: [`database/schema.sql`](database/schema.sql)
 - HttpOnly, SameSite session cookie (Secure on HTTPS)
 - Role and ownership checked on the server for every action; roles live in a `roles` table and are re-read from the database on every protected request
 - Hiring runs in a database transaction with row locks
->>>>>>> 53fa469514309da3cd93032c33c726a412cdb933
+
 
 ## Getting started
 
@@ -222,17 +218,17 @@ php -S localhost:8000 -t public
 
 Open <http://localhost:8000>.
 
-<<<<<<< HEAD
+
 **Create the first admin.** The sign-up form only offers client and freelancer. Sign up normally, then run this once:
 =======
 **Create an admin.** Admins can't be created from the sign-up form. Sign up normally, then run:
->>>>>>> 53fa469514309da3cd93032c33c726a412cdb933
+
 
 ```sql
 UPDATE users SET role_id = (SELECT id FROM roles WHERE name = 'admin') WHERE email = 'you@example.com';
 ```
 
-<<<<<<< HEAD
+
 After that, log in as the admin and create every other account (any role, with a password you choose) from **Admin > Users > Add user**. No more SQL is needed.
 
 **Forgot the admin password?** There is no email reset in this MVP. Run `php database/set_password.php admin@example.com` and type the new password at the prompt.
@@ -260,12 +256,12 @@ After that, log in as the admin and create every other account (any role, with a
 2. Sign up as a **freelancer** (another browser or private window) and send a proposal.
 3. As the client, open the gig, **Accept proposal**, then **Mark as completed**.
 4. Leave a star rating. It now shows on the gig, on the proposal list for future gigs, and on the freelancer's public profile.
->>>>>>> 53fa469514309da3cd93032c33c726a412cdb933
+
 
 ## Project structure
 
 ```
-<<<<<<< HEAD
+
 DevGigs/
 ├── README.md
 ├── config/
@@ -344,7 +340,7 @@ devgigs/
     ├── schema.sql           tables and indexes (fresh install)
     ├── migrate_roles.sql    one-time upgrade: users.role column -> roles table
     └── set_password.php     command line: set any user's password (e.g. a forgotten admin password)
->>>>>>> 53fa469514309da3cd93032c33c726a412cdb933
+
 ```
 
 ## Roadmap
@@ -353,10 +349,10 @@ devgigs/
 - [ ] Sub-ratings (communication, quality, timeliness)
 - [ ] Email notifications and an emailed "forgot password" link
 - [ ] Payments / escrow and in-app messaging
-<<<<<<< HEAD
+
 =======
 - [ ] Gig cancellation
->>>>>>> 53fa469514309da3cd93032c33c726a412cdb933
+
 
 ## Documentation
 
@@ -364,9 +360,7 @@ A full Product Requirements Document (functional and non-functional requirements
 
 ## Author
 
-<<<<<<< HEAD
+
 **Muhammad Huzaifa Farrukh**: [GitHub](https://github.com/*MuhammadHuzaifaFarrukh) · [LinkedIn](https://www.linkedin.com/in/muhammad-huzaifa-farrukh-9608a1358/)
 =======
 **Muhammad Huzaifa Farrukh**: [GitHub](https://github.com/*MuhammadHuzaifaFarrukh) · [LinkedIn](https://linkedin.com/in/your-profile)
-
->>>>>>> 53fa469514309da3cd93032c33c726a412cdb933
