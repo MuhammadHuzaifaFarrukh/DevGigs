@@ -2,7 +2,7 @@
 
 **A freelance marketplace where clients post software gigs, freelancers bid on them, and completed work earns a public star rating.**
 
-<<<<<<< HEAD
+
 Built with plain **PHP** and **MySQL** (mysqli, prepared statements), with no framework. It's a small project meant to show relational database design, role-based access, full CRUD and secure form handling.
 =======
 Built with plain **PHP** and **MySQL** (mysqli, prepared statements), with no framework. It's a small project meant to show relational database design, role-based access and secure form handling.
