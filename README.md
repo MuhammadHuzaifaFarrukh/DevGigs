@@ -2,7 +2,11 @@
 
 **A freelance marketplace where clients post software gigs, freelancers bid on them, and completed work earns a public star rating.**
 
+<<<<<<< HEAD
 Built with plain **PHP** and **MySQL** (mysqli, prepared statements), with no framework. It's a small project meant to show relational database design, role-based access, full CRUD and secure form handling.
+=======
+Built with plain **PHP** and **MySQL** (mysqli, prepared statements), with no framework. It's a small project meant to show relational database design, role-based access and secure form handling.
+>>>>>>> 53fa469514309da3cd93032c33c726a412cdb933
 
 ![PHP](https://img.shields.io/badge/PHP-7.4%2B-777BB4?logo=php&logoColor=white)
 ![MySQL](https://img.shields.io/badge/MySQL%20%2F%20MariaDB-InnoDB-4479A1?logo=mysql&logoColor=white)
@@ -12,6 +16,7 @@ Built with plain **PHP** and **MySQL** (mysqli, prepared statements), with no fr
 
 ## Features
 
+<<<<<<< HEAD
 **Guests (not logged in)**
 - Browse, search and sort open gigs, and read gig details and freelancer profiles
 - Nothing else: they cannot post, bid, review or manage anything
@@ -59,10 +64,36 @@ Every create, update and delete is a **POST with a CSRF token**, validated on th
 - **Hard delete** is used only where nothing else depends on the row: withdrawing a pending proposal, deleting your own review, and an admin destroying an account. Destroying an account removes that user's reviews, proposals and gigs first, in one transaction.
 - Admin accounts cannot be disabled or destroyed through the site, and an admin keeps the admin role, so the platform can never lock itself out.
 
+=======
+**Clients**
+- Post gigs with a title, description and budget
+- Review every proposal on a gig, with each freelancer's average rating shown beside their bid
+- Accept one proposal, which moves the gig to *in progress* and rejects the other pending bids
+- Mark the gig *completed*, then **rate the freelancer 1-5 stars with an optional comment**
+
+**Freelancers**
+- Browse and search open gigs, and sort them by newest or budget
+- Send one proposal per gig (cover letter and bid)
+- Track proposal status from a personal profile
+- Build a reputation: average rating, review count and all reviews on a **public profile** (`freelancer.php`)
+
+**Admins**
+- Dashboard with platform counts
+- Disable users, remove gigs, and **remove reviews** (soft delete)
+
+**All logged-in users**
+- Account settings page: change name and phone, and **change password** (current password required)
+
+**General**
+- Light and dark theme (saved in a cookie, follows the device by default)
+- Responsive layout, keyboard-friendly star rating control
+
+>>>>>>> 53fa469514309da3cd93032c33c726a412cdb933
 ## Gig life cycle
 
 ```
 open ──(client accepts a proposal)──► in_progress ──(client marks complete)──► completed ──► client reviews freelancer
+<<<<<<< HEAD
   │                                        │
   └──────────(client cancels)──────────────┴──► cancelled
 ```
@@ -74,6 +105,13 @@ open ──(client accepts a proposal)──► in_progress ──(client marks 
 ## Database design
 
 Five tables in third normal form.
+=======
+```
+
+## Database design
+
+Five tables in third normal form. `roles` and `reviews` are the newest additions.
+>>>>>>> 53fa469514309da3cd93032c33c726a412cdb933
 
 ```mermaid
 erDiagram
@@ -129,16 +167,24 @@ erDiagram
 
 Key constraints:
 - `users.role_id` points to `roles.id`. Each account has exactly one role; someone who wants to both hire and work registers two accounts with different emails.
+<<<<<<< HEAD
 - `proposals (gig_id, freelancer_id)` is unique, so a freelancer bids once per gig. Withdrawing a proposal is a real `DELETE`, which frees the slot so they can bid again.
 - `reviews.gig_id` is unique, so there is at most one review per gig. An author who deletes their own review can write a new one; an admin-removed review stays blocked.
 - `reviews.rating` has a `CHECK (rating BETWEEN 1 AND 5)`. The app validates it too, because MySQL older than 8.0.16 ignores `CHECK`.
 - Foreign keys forbid deleting a parent before its children, so permanently destroying a user deletes in the order reviews, proposals, gigs, user.
+=======
+- `proposals (gig_id, freelancer_id)` is unique, so a freelancer bids once per gig.
+- `reviews.gig_id` is unique, so there is at most one review per gig.
+- `reviews.rating` has a `CHECK (rating BETWEEN 1 AND 5)`. The app validates it too, because MySQL older than 8.0.16 ignores `CHECK`.
+- Nothing is hard-deleted. Rows are flagged with `is_deleted`.
+>>>>>>> 53fa469514309da3cd93032c33c726a412cdb933
 
 Full SQL: [`database/schema.sql`](database/schema.sql)
 
 ## Security
 
 - Prepared statements for every query (SQL injection)
+<<<<<<< HEAD
 - Output escaping with `htmlspecialchars` (XSS), including review text and gig titles
 - Per-session CSRF token on every state-changing form, including every delete
 - Confirmation page before every delete; permanent user deletion also asks for the admin's password
@@ -147,6 +193,14 @@ Full SQL: [`database/schema.sql`](database/schema.sql)
 - Role and ownership checked on the server for every action (the `WHERE` clause of each update repeats the check); roles live in a `roles` table and are re-read from the database on every protected request
 - Search, sort, status and page values from the URL are checked against whitelists
 - Hiring and cancelling run in database transactions
+=======
+- Output escaping with `htmlspecialchars` (XSS), including review text
+- Per-session CSRF token on every state-changing form
+- Passwords hashed with bcrypt, session id regenerated at login
+- HttpOnly, SameSite session cookie (Secure on HTTPS)
+- Role and ownership checked on the server for every action; roles live in a `roles` table and are re-read from the database on every protected request
+- Hiring runs in a database transaction with row locks
+>>>>>>> 53fa469514309da3cd93032c33c726a412cdb933
 
 ## Getting started
 
@@ -169,12 +223,17 @@ php -S localhost:8000 -t public
 
 Open <http://localhost:8000>.
 
+<<<<<<< HEAD
 **Create the first admin.** The sign-up form only offers client and freelancer. Sign up normally, then run this once:
+=======
+**Create an admin.** Admins can't be created from the sign-up form. Sign up normally, then run:
+>>>>>>> 53fa469514309da3cd93032c33c726a412cdb933
 
 ```sql
 UPDATE users SET role_id = (SELECT id FROM roles WHERE name = 'admin') WHERE email = 'you@example.com';
 ```
 
+<<<<<<< HEAD
 After that, log in as the admin and create every other account (any role, with a password you choose) from **Admin > Users > Add user**. No more SQL is needed.
 
 **Forgot the admin password?** There is no email reset in this MVP. Run `php database/set_password.php admin@example.com` and type the new password at the prompt.
@@ -191,10 +250,23 @@ After that, log in as the admin and create every other account (any role, with a
 1. As the freelancer, open **My proposals**, edit the bid, withdraw it, and send a new one.
 2. As the client, open **My gigs**, edit a gig, cancel one, delete one.
 3. As the admin, open **Admin > Users**, add a user, reset their password, disable and restore them, then destroy a test account.
+=======
+**Forgot the admin password?** There is no email reset in this MVP. Run `php database/set_password.php admin@example.com` and type the new password at the prompt.
+
+**Upgrading an existing database?** Run `database/migrate_roles.sql` once (moves the old `users.role` column into the `roles` table, keeping your data), and the `CREATE TABLE IF NOT EXISTS reviews ...` statement from `schema.sql`.
+
+## Try the review flow
+
+1. Sign up as a **client** and post a gig.
+2. Sign up as a **freelancer** (another browser or private window) and send a proposal.
+3. As the client, open the gig, **Accept proposal**, then **Mark as completed**.
+4. Leave a star rating. It now shows on the gig, on the proposal list for future gigs, and on the freelancer's public profile.
+>>>>>>> 53fa469514309da3cd93032c33c726a412cdb933
 
 ## Project structure
 
 ```
+<<<<<<< HEAD
 DevGigs/
 ├── README.md
 ├── config/
@@ -248,6 +320,32 @@ DevGigs/
 └── database/
     ├── schema.sql             tables and indexes (fresh install)
     └── set_password.php       command line: set any user's password (e.g. a forgotten admin password)
+=======
+devgigs/
+├── config/database.php      mysqli connection ($db): edit credentials here
+├── includes/
+│   ├── helpers.php          e() escaping, redirect(), star + rating helpers
+│   ├── session.php          session start + cookie settings, CSRF token, flash messages
+│   ├── auth.php             authentication (login_user, logout_user) and authorization (require_login + roles)
+│   ├── cookies.php          cookie preferences: theme, gig sort, remembered email
+│   ├── db.php               prepared-statement helpers: db_all, db_one, db_exec
+│   ├── validation.php       server-side validation (email, password, phone, text, money, rating)
+│   └── layout.php           shared header, nav, footer
+├── public/                  web root
+│   ├── index.php            home, search and gig list
+│   ├── signup.php / login.php / logout.php
+│   ├── create-gig.php       client: post a gig
+│   ├── view-gig.php         gig details, proposals, accept, complete, review
+│   ├── freelancer.php       public freelancer profile with reviews
+│   ├── settings.php         change name, phone and password
+│   ├── profile.php          own profile (gigs / proposals / reviews)
+│   ├── admin-dashboard.php  moderation
+│   └── css/ js/ img/
+└── database/
+    ├── schema.sql           tables and indexes (fresh install)
+    ├── migrate_roles.sql    one-time upgrade: users.role column -> roles table
+    └── set_password.php     command line: set any user's password (e.g. a forgotten admin password)
+>>>>>>> 53fa469514309da3cd93032c33c726a412cdb933
 ```
 
 ## Roadmap
@@ -256,6 +354,10 @@ DevGigs/
 - [ ] Sub-ratings (communication, quality, timeliness)
 - [ ] Email notifications and an emailed "forgot password" link
 - [ ] Payments / escrow and in-app messaging
+<<<<<<< HEAD
+=======
+- [ ] Gig cancellation
+>>>>>>> 53fa469514309da3cd93032c33c726a412cdb933
 
 ## Documentation
 
@@ -263,4 +365,9 @@ A full Product Requirements Document (functional and non-functional requirements
 
 ## Author
 
+<<<<<<< HEAD
 **Muhammad Huzaifa Farrukh**: [GitHub](https://github.com/*MuhammadHuzaifaFarrukh) · [LinkedIn](https://www.linkedin.com/in/muhammad-huzaifa-farrukh-9608a1358/)
+=======
+**Muhammad Huzaifa Farrukh**: [GitHub](https://github.com/*MuhammadHuzaifaFarrukh) · [LinkedIn](https://linkedin.com/in/your-profile)
+
+>>>>>>> 53fa469514309da3cd93032c33c726a412cdb933
