@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/layout.php';
+require_once __DIR__ . '/../includes/lists.php';
 require_once __DIR__ . '/../config/database.php';
 
 /* Sort order is a cookie preference: choosing one once keeps it on the next visit. */
@@ -20,23 +21,26 @@ if (isset($_GET['sort']) && isset($sorts[$_GET['sort']])) {
 $sort = pref('gig_sort', 'newest', GIG_SORTS);
 $q    = mb_substr(trim($_GET['q'] ?? ''), 0, 100);
 
-$sql = "SELECT g.id, g.title, g.description, g.budget, g.created_at, u.name AS client_name
-        FROM gigs g JOIN users u ON g.client_id = u.id
-        WHERE g.is_deleted = 0 AND g.status = 'open'";
+/* READ: one page of open gigs. Gigs from disabled accounts are hidden. */
+$where  = "g.is_deleted = 0 AND g.status = 'open' AND u.is_deleted = 0";
 $params = [];
 $types  = '';
 if ($q !== '') {
-    $sql .= ' AND (g.title LIKE ? OR g.description LIKE ?)';
-    $like = '%' . addcslashes($q, '%_\\') . '%';
+    $where .= ' AND (g.title LIKE ? OR g.description LIKE ?)';
+    $like = like_term($q);
     $params = [$like, $like];
     $types  = 'ss';
 }
-$sql .= ' ORDER BY ' . $sorts[$sort] . ' LIMIT 50';
-$gigs = db_all($db, $sql, $types, $params);
+$total = (int)db_one($db, "SELECT COUNT(*) AS n FROM gigs g JOIN users u ON g.client_id = u.id WHERE $where", $types, $params)['n'];
+$pg    = paginate($total, 10);
+$gigs  = db_all($db, "SELECT g.id, g.title, g.description, g.budget, g.created_at, u.name AS client_name
+                      FROM gigs g JOIN users u ON g.client_id = u.id
+                      WHERE $where ORDER BY " . $sorts[$sort] . ', g.id DESC LIMIT ? OFFSET ?',
+                $types . 'ii', array_merge($params, [$pg['perPage'], $pg['offset']]));
 
 /* Live numbers for the stat bar */
 $stats = db_one($db, "SELECT
-    (SELECT COUNT(*) FROM gigs WHERE is_deleted = 0 AND status = 'open') AS open_gigs,
+    (SELECT COUNT(*) FROM gigs g JOIN users u ON u.id = g.client_id WHERE g.is_deleted = 0 AND g.status = 'open' AND u.is_deleted = 0) AS open_gigs,
     (SELECT COUNT(*) FROM users u JOIN roles r ON r.id = u.role_id WHERE u.is_deleted = 0 AND r.name = 'freelancer') AS freelancers,
     (SELECT COUNT(*) FROM proposals WHERE is_deleted = 0) AS proposals");
 
@@ -118,6 +122,7 @@ page_start('Find trusted developers');
                     </article>
                 <?php endforeach; ?>
             </div>
+            <?= pager($pg, '#gigs') ?>
         <?php endif; ?>
     </div>
 </section>

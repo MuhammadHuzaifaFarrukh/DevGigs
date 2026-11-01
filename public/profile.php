@@ -55,7 +55,7 @@ page_start('My profile');
 
     <?php if ($role === 'client'): ?>
         <div class="panel">
-            <div class="section-head" style="margin-bottom:8px"><h2 style="margin:0">My gigs</h2><a class="btn btn-sm" href="create-gig.php">Post a gig</a></div>
+            <div class="section-head" style="margin-bottom:8px"><h2 style="margin:0">My gigs</h2><span class="row-actions"><a class="btn btn-ghost btn-sm" href="my-gigs.php">Manage all</a><a class="btn btn-sm" href="create-gig.php">Post a gig</a></span></div>
             <?php if (!$myGigs): ?>
                 <p class="muted">You have not posted a gig yet.</p>
             <?php else: ?>
@@ -76,7 +76,7 @@ page_start('My profile');
         </div>
     <?php elseif ($role === 'freelancer'): ?>
         <div class="panel">
-            <div class="section-head" style="margin-bottom:8px"><h2 style="margin:0">My proposals</h2><a class="btn btn-sm" href="index.php#gigs">Browse gigs</a></div>
+            <div class="section-head" style="margin-bottom:8px"><h2 style="margin:0">My proposals</h2><span class="row-actions"><a class="btn btn-ghost btn-sm" href="my-proposals.php">Manage all</a><a class="btn btn-sm" href="index.php#gigs">Browse gigs</a></span></div>
             <?php if (!$myProposals): ?>
                 <p class="muted">You have not sent a proposal yet.</p>
             <?php else: ?>
@@ -112,7 +112,7 @@ page_start('My profile');
             <?php endforeach; ?>
         </div>
     <?php else: ?>
-        <div class="panel"><p>You are an administrator. <a class="link" href="admin-dashboard.php">Open the admin dashboard</a></p></div>
+        <div class="panel"><p>You are an administrator. <a class="link" href="admin-dashboard.php">Open the admin dashboard</a> or <a class="link" href="admin-users.php">manage users</a>.</p></div>
     <?php endif; ?>
 </div>
 <?php page_end();

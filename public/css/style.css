@@ -1214,3 +1214,172 @@ th.right {
     animation: none !important
   }
 }
+
+/* ---------- CRUD pages: admin tabs, filters, pagination, forms ---------- */
+.tabs {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  border-bottom: 1px solid var(--line)
+}
+
+.tabs a {
+  padding: 10px 16px;
+  text-decoration: none;
+  color: var(--muted);
+  font-weight: 600;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px
+}
+
+.tabs a:hover {
+  color: var(--ink)
+}
+
+.tabs a[aria-current="page"] {
+  color: var(--accent-text);
+  border-bottom-color: var(--accent)
+}
+
+.page-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap
+}
+
+.page-head h1 {
+  font-size: 2rem
+}
+
+.filters {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: center;
+  margin-bottom: 16px
+}
+
+.filters .input {
+  width: auto
+}
+
+.filters .grow {
+  flex: 1;
+  min-width: 200px
+}
+
+.pager {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 18px;
+  font-size: 14px;
+  color: var(--muted)
+}
+
+.pager .links {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap
+}
+
+.pager a,
+.pager .cur,
+.pager .disabled {
+  padding: 6px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  text-decoration: none;
+  color: var(--ink);
+  background: var(--surface)
+}
+
+.pager a:hover {
+  background: var(--surface-2)
+}
+
+.pager .cur {
+  background: var(--accent);
+  color: var(--on-accent);
+  border-color: var(--accent)
+}
+
+.pager .disabled {
+  opacity: .45
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0 16px
+}
+
+.form-grid .full {
+  grid-column: 1 / -1
+}
+
+.row-actions {
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+  flex-wrap: wrap
+}
+
+.btn-row {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: center;
+  margin-top: 8px
+}
+
+.danger-zone {
+  border-color: var(--danger)
+}
+
+.danger-zone h2 {
+  color: var(--danger)
+}
+
+.badge-disabled,
+.badge-removed {
+  background: var(--danger-soft);
+  color: var(--danger)
+}
+
+.facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 12px;
+  margin: 16px 0
+}
+
+.facts div {
+  background: var(--surface-2);
+  border-radius: 10px;
+  padding: 12px 14px
+}
+
+.facts b {
+  display: block;
+  font: 700 1.5rem var(--font-display)
+}
+
+.facts span {
+  font-size: 13px;
+  color: var(--muted)
+}
+
+tr.is-off td {
+  opacity: .6
+}
+
+@media (max-width:640px) {
+  .form-grid {
+    grid-template-columns: 1fr
+  }
+}

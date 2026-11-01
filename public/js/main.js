@@ -44,6 +44,23 @@
       document.cookie = 'theme=' + next + '; path=/; max-age=31536000; SameSite=Lax';
       return;
     }
+    var gen = e.target.closest('[data-generate-pw]');
+    if (gen) {
+      var form = gen.closest('form');
+      var chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789';
+      var pwd = '';
+      do {
+        var buf = new Uint32Array(14);
+        crypto.getRandomValues(buf);
+        pwd = Array.prototype.map.call(buf, function (n) { return chars[n % chars.length]; }).join('');
+      } while (!PASSWORD_RULES.upper(pwd) || !PASSWORD_RULES.lower(pwd) || !PASSWORD_RULES.num(pwd));
+      form.querySelectorAll('input[data-validate="password"], input[data-validate="confirm"]').forEach(function (f) {
+        f.type = 'text';
+        f.value = pwd;
+        f.dispatchEvent(new Event('input', { bubbles: true }));
+      });
+      return;
+    }
     var eye = e.target.closest('[data-toggle-pw]');
     if (eye) {
       var field = document.getElementById(eye.getAttribute('data-toggle-pw'));
@@ -113,6 +130,10 @@
         if (confirm) show(confirm, confirm.value === input.value ? '' : 'Passwords do not match.');
       }
       wire(input, function (v, raw) {
+        if (raw === '' && input.hasAttribute('data-optional')) {   /* edit form: blank means keep the current password */
+          if (meter) meter.setAttribute('data-level', 0);
+          return '';
+        }
         var passed = 0;
         Object.keys(PASSWORD_RULES).forEach(function (key) {
           var ok = PASSWORD_RULES[key](raw);

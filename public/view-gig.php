@@ -9,7 +9,12 @@ if (!$gig_id || $gig_id < 1) {
     redirect('index.php');
 }
 
-$gig = db_one($db, 'SELECT g.*, u.name AS client_name FROM gigs g JOIN users u ON g.client_id = u.id WHERE g.id = ? AND g.is_deleted = 0', 'i', [$gig_id]);
+$gig = db_one($db, 'SELECT g.*, u.name AS client_name, u.is_deleted AS client_disabled FROM gigs g JOIN users u ON g.client_id = u.id WHERE g.id = ?', 'i', [$gig_id]);
+
+// Removed gigs, and gigs of disabled accounts, are hidden from everyone except admins.
+if ($gig && ($gig['is_deleted'] || $gig['client_disabled']) && current_role() !== 'admin') {
+    $gig = null;
+}
 
 if (!$gig) {
     http_response_code(404);
@@ -31,7 +36,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = (string)($_POST['action'] ?? 'propose');
     $owns   = current_user_id() === (int)$gig['client_id'];
 
-    if ($action === 'accept_proposal' || $action === 'complete_gig') {
+    if (in_array($action, ['accept_proposal', 'reject_proposal', 'complete_gig', 'cancel_gig'], true)) {
         /* Client-only steps that lead to a review: hire someone, then close the gig. */
         $pid = (int)($_POST['proposal_id'] ?? 0);
         if (!csrf_ok()) {
@@ -41,7 +46,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } elseif ($action === 'accept_proposal') {
             $db->begin_transaction();
             try {
-                $p = db_one($db, "SELECT id FROM proposals WHERE id = ? AND gig_id = ? AND status = 'pending' AND is_deleted = 0 FOR UPDATE", 'ii', [$pid, $gig_id]);
+                $p = db_one($db, "SELECT id FROM proposals WHERE id = ? AND gig_id = ? AND status = 'pending' AND is_deleted = 0 AND freelancer_id IN (SELECT id FROM users WHERE is_deleted = 0) FOR UPDATE", 'ii', [$pid, $gig_id]);
                 $g = db_one($db, "SELECT id FROM gigs WHERE id = ? AND status = 'open' AND is_deleted = 0 FOR UPDATE", 'i', [$gig_id]);
                 if (!$p || !$g) {
                     $db->rollback();
@@ -57,6 +62,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $db->rollback();
                 error_log('Accept failed: ' . $ex->getMessage());
                 set_flash('We could not accept that proposal. Please try again.', 'error');
+            }
+        } elseif ($action === 'reject_proposal') {
+            $changed = db_exec($db, "UPDATE proposals SET status = 'rejected' WHERE id = ? AND gig_id = ? AND status = 'pending' AND is_deleted = 0", 'ii', [$pid, $gig_id]);
+            set_flash($changed > 0 ? 'Proposal rejected.' : 'That proposal can no longer be rejected.', $changed > 0 ? 'ok' : 'error');
+        } elseif ($action === 'cancel_gig') {
+            $db->begin_transaction();
+            try {
+                $changed = db_exec($db, "UPDATE gigs SET status = 'cancelled' WHERE id = ? AND client_id = ? AND status IN ('open', 'in_progress') AND is_deleted = 0", 'ii', [$gig_id, current_user_id()]);
+                if ($changed > 0) {
+                    db_exec($db, "UPDATE proposals SET status = 'rejected' WHERE gig_id = ? AND status = 'pending'", 'i', [$gig_id]);
+                }
+                $db->commit();
+                set_flash($changed > 0 ? 'Gig cancelled. Pending proposals were rejected.' : 'Only an open or in-progress gig can be cancelled.', $changed > 0 ? 'ok' : 'error');
+            } catch (\mysqli_sql_exception $ex) {
+                $db->rollback();
+                error_log('Cancel failed: ' . $ex->getMessage());
+                set_flash('We could not cancel the gig. Please try again.', 'error');
             }
         } else { // complete_gig
             $changed = db_exec($db, "UPDATE gigs SET status = 'completed' WHERE id = ? AND status = 'in_progress' AND is_deleted = 0", 'i', [$gig_id]);
@@ -126,22 +148,22 @@ $is_owner = is_logged_in() && current_user_id() === (int)$gig['client_id'];
 
 $mine = null;
 if ($role === 'freelancer') {
-    $mine = db_one($db, 'SELECT bid_amount, status, created_at FROM proposals WHERE gig_id = ? AND freelancer_id = ? AND is_deleted = 0', 'ii', [$gig_id, current_user_id()]);
+    $mine = db_one($db, 'SELECT id, bid_amount, status, created_at FROM proposals WHERE gig_id = ? AND freelancer_id = ? AND is_deleted = 0', 'ii', [$gig_id, current_user_id()]);
 }
 
 $proposals = [];
-if ($is_owner) {
+if ($is_owner || $role === 'admin') {
     $proposals = db_all($db, 'SELECT p.*, u.name AS freelancer_name, u.email AS freelancer_email,
                             (SELECT AVG(r.rating) FROM reviews r WHERE r.freelancer_id = p.freelancer_id AND r.is_deleted = 0) AS avg_rating,
                             (SELECT COUNT(*) FROM reviews r WHERE r.freelancer_id = p.freelancer_id AND r.is_deleted = 0) AS review_count
                         FROM proposals p JOIN users u ON p.freelancer_id = u.id
-                        WHERE p.gig_id = ? AND p.is_deleted = 0 ORDER BY p.created_at DESC', 'i', [$gig_id]);
+                        WHERE p.gig_id = ? AND p.is_deleted = 0 AND u.is_deleted = 0 ORDER BY p.created_at DESC', 'i', [$gig_id]);
 }
 
 /* Who was hired, and the review (if any) for this gig. */
 $hired = db_one($db, "SELECT p.freelancer_id, u.name FROM proposals p JOIN users u ON u.id = p.freelancer_id
                       WHERE p.gig_id = ? AND p.status = 'accepted' AND p.is_deleted = 0", 'i', [$gig_id]);
-$review = db_one($db, 'SELECT r.rating, r.comment, r.created_at, u.name AS reviewer_name
+$review = db_one($db, 'SELECT r.id, r.rating, r.comment, r.created_at, u.name AS reviewer_name
                        FROM reviews r JOIN users u ON u.id = r.reviewer_id
                        WHERE r.gig_id = ? AND r.is_deleted = 0', 'i', [$gig_id]);
 
@@ -158,8 +180,25 @@ page_start($gig['title']);
             <h1><?= e($gig['title']) ?></h1>
             <p class="prose"><?= e($gig['description']) ?></p>
             <div class="foot-meta">Posted by <strong><?= e($gig['client_name']) ?></strong> on <?= e(date('M j, Y', strtotime($gig['created_at']))) ?></div>
+            <?php if ($is_owner): ?>
+                <div class="btn-row" style="margin-top:16px">
+                    <?php if ($gig['status'] === 'open'): ?><a class="btn btn-ghost btn-sm" href="edit-gig.php?id=<?= (int)$gig_id ?>">Edit gig</a><?php endif; ?>
+                    <?php if (in_array($gig['status'], ['open', 'in_progress'], true)): ?>
+                        <form class="inline" method="post" action="view-gig.php?id=<?= (int)$gig_id ?>" data-confirm="Cancel this gig? Pending proposals will be rejected.">
+                            <?= csrf_field() ?>
+                            <input type="hidden" name="action" value="cancel_gig">
+                            <button class="btn btn-ghost btn-sm" type="submit">Cancel gig</button>
+                        </form>
+                    <?php endif; ?>
+                    <?php if (in_array($gig['status'], ['open', 'cancelled'], true)): ?><a class="btn btn-danger btn-sm" href="delete-gig.php?id=<?= (int)$gig_id ?>">Delete gig</a><?php endif; ?>
+                </div>
+            <?php endif; ?>
         </div>
     </div>
+
+    <?php if ($role === 'admin'): ?>
+        <div class="alert alert-ok" style="margin:0"><?= $gig['is_deleted'] ? 'This gig is removed and hidden from the marketplace. ' : 'You are viewing this gig as an admin. ' ?><a class="link" href="admin-gigs.php">Manage gigs</a></div>
+    <?php endif; ?>
 
     <?php if ($error): ?><div class="alert alert-error" role="alert" style="margin:0"><?= e($error) ?></div><?php endif; ?>
 
@@ -168,6 +207,12 @@ page_start($gig['title']);
             <h2>Your proposal</h2>
             <p>You bid <strong>$<?= number_format($mine['bid_amount'], 2) ?></strong> on <?= e(date('M j, Y', strtotime($mine['created_at']))) ?>.
                Status: <span class="badge badge-<?= e($mine['status']) ?>"><?= e($mine['status']) ?></span></p>
+            <?php if ($mine['status'] === 'pending'): ?>
+                <div class="btn-row">
+                    <?php if ($gig['status'] === 'open'): ?><a class="btn btn-ghost btn-sm" href="edit-proposal.php?id=<?= (int)$mine['id'] ?>">Edit proposal</a><?php endif; ?>
+                    <a class="btn btn-danger btn-sm" href="delete-proposal.php?id=<?= (int)$mine['id'] ?>">Withdraw</a>
+                </div>
+            <?php endif; ?>
         </div>
     <?php elseif ($role === 'freelancer' && $gig['status'] === 'open'): ?>
         <div class="panel">
@@ -195,7 +240,7 @@ page_start($gig['title']);
         <div class="panel"><p class="muted">Only freelancers can send proposals. You are signed in as a client.</p></div>
     <?php endif; ?>
 
-    <?php if ($is_owner): ?>
+    <?php if ($is_owner || $role === 'admin'): ?>
         <div class="panel">
             <h2>Proposals received (<?= count($proposals) ?>)</h2>
             <?php if (!$proposals): ?>
@@ -218,13 +263,21 @@ page_start($gig['title']);
                     </div>
                     <p><?= e($p['cover_letter']) ?></p>
                     <div class="hint">Sent <?= e(date('M j, Y', strtotime($p['created_at']))) ?></div>
-                    <?php if ($gig['status'] === 'open' && $p['status'] === 'pending'): ?>
-                        <form class="actions" method="post" action="view-gig.php?id=<?= (int)$gig_id ?>" data-confirm="Accept this proposal? Other pending proposals will be rejected.">
-                            <?= csrf_field() ?>
-                            <input type="hidden" name="action" value="accept_proposal">
-                            <input type="hidden" name="proposal_id" value="<?= (int)$p['id'] ?>">
-                            <button class="btn btn-sm" type="submit">Accept proposal</button>
-                        </form>
+                    <?php if ($is_owner && $gig['status'] === 'open' && $p['status'] === 'pending'): ?>
+                        <div class="btn-row">
+                            <form class="inline" method="post" action="view-gig.php?id=<?= (int)$gig_id ?>" data-confirm="Accept this proposal? Other pending proposals will be rejected.">
+                                <?= csrf_field() ?>
+                                <input type="hidden" name="action" value="accept_proposal">
+                                <input type="hidden" name="proposal_id" value="<?= (int)$p['id'] ?>">
+                                <button class="btn btn-sm" type="submit">Accept proposal</button>
+                            </form>
+                            <form class="inline" method="post" action="view-gig.php?id=<?= (int)$gig_id ?>" data-confirm="Reject this proposal?">
+                                <?= csrf_field() ?>
+                                <input type="hidden" name="action" value="reject_proposal">
+                                <input type="hidden" name="proposal_id" value="<?= (int)$p['id'] ?>">
+                                <button class="btn btn-ghost btn-sm" type="submit">Reject</button>
+                            </form>
+                        </div>
                     <?php endif; ?>
                 </div>
             <?php endforeach; ?>
@@ -254,6 +307,12 @@ page_start($gig['title']);
                 </div>
                 <?php if ($review['comment'] !== null && $review['comment'] !== ''): ?><p><?= e($review['comment']) ?></p><?php endif; ?>
             </div>
+            <?php if ($is_owner): ?>
+                <div class="btn-row">
+                    <a class="btn btn-ghost btn-sm" href="edit-review.php?id=<?= (int)$review['id'] ?>">Edit review</a>
+                    <a class="btn btn-danger btn-sm" href="delete-review.php?id=<?= (int)$review['id'] ?>">Delete review</a>
+                </div>
+            <?php endif; ?>
         </div>
     <?php elseif ($is_owner && $gig['status'] === 'completed' && $hired): ?>
         <div class="panel">

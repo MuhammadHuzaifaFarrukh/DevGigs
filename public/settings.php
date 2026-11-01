@@ -118,5 +118,13 @@ page_start('Settings');
             <button class="btn" type="submit">Change password</button>
         </form>
     </div>
+
+    <?php if (current_role() !== 'admin'): ?>
+    <div class="panel danger-zone">
+        <h2>Delete account</h2>
+        <p class="muted" style="margin-bottom:14px">Log out for good and hide your gigs, proposals and reviews. You will need your password to confirm.</p>
+        <a class="btn btn-danger" href="delete-account.php">Delete my account</a>
+    </div>
+    <?php endif; ?>
 </div>
 <?php page_end();

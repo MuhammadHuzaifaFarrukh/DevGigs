@@ -5,6 +5,7 @@ declare(strict_types=1);
 /** Shared page shell: <head>, navigation, flash message, footer. */
 require_once __DIR__ . '/auth.php';
 require_once __DIR__ . '/cookies.php';
+require_once __DIR__ . '/users.php';
 
 function logo_svg(): string {
     return '<svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="7" fill="currentColor"/>'
@@ -34,8 +35,8 @@ function page_start(string $title): void {
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Instrument+Sans:wght@400;500;600&display=swap">
-    <link rel="stylesheet" href="css/style.css?v=5">
-    <script src="js/main.js?v=3" defer></script>
+    <link rel="stylesheet" href="css/style.css?v=6">
+    <script src="js/main.js?v=4" defer></script>
 </head>
 <body>
 <header class="nav">
@@ -43,7 +44,8 @@ function page_start(string $title): void {
         <a class="brand" href="index.php"><?= logo_svg() ?>DevGigs</a>
         <nav class="nav-links" aria-label="Main">
             <a href="index.php#gigs">Browse gigs</a>
-            <?php if ($role === 'client'): ?><a href="create-gig.php">Post a gig</a><?php endif; ?>
+            <?php if ($role === 'client'): ?><a href="my-gigs.php">My gigs</a><a href="create-gig.php">Post a gig</a><?php endif; ?>
+            <?php if ($role === 'freelancer'): ?><a href="my-proposals.php">My proposals</a><?php endif; ?>
             <?php if ($role === 'admin'): ?><a href="admin-dashboard.php">Admin</a><?php endif; ?>
         </nav>
         <div class="nav-end">
@@ -93,4 +95,23 @@ function password_input(string $id, string $name, string $autocomplete, string $
         </div>
     </div>
     <?php
+}
+
+/** A styled error page (400, 403, 404...) instead of a bare text message. Stops the script. */
+function error_page(int $code, string $message): void {
+    http_response_code($code);
+    page_start('Error ' . $code);
+    echo '<div class="narrow"><div class="panel empty">' . e($message) . ' <a class="link" href="index.php">Back to gigs</a></div></div>';
+    page_end();
+    exit();
+}
+
+/** Tab bar shown at the top of every admin page. $active is dashboard | users | gigs. */
+function admin_tabs(string $active): void {
+    $tabs = ['dashboard' => ['admin-dashboard.php', 'Dashboard'], 'users' => ['admin-users.php', 'Users'], 'gigs' => ['admin-gigs.php', 'Gigs']];
+    echo '<nav class="tabs" aria-label="Admin">';
+    foreach ($tabs as $key => [$href, $label]) {
+        echo '<a href="' . e($href) . '"' . ($key === $active ? ' aria-current="page"' : '') . '>' . e($label) . '</a>';
+    }
+    echo '</nav>';
 }
